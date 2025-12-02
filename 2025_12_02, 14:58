@@ -1,0 +1,152 @@
+import streamlit as st
+from openai import OpenAI
+import numpy as np
+import librosa
+import whisper
+
+st.set_page_config(page_title="Speakfit", layout="wide")
+
+# -----------------------------
+# 💡 여기에 직접 API Key 입력
+# -----------------------------
+API_KEY = " "
+
+st.title("Speakfit")
+
+# -----------------------------
+# GPT 호출 함수
+# -----------------------------
+@st.cache_data(show_spinner=True)
+def ask_gpt(user_input):
+    client = OpenAI(api_key=API_KEY)
+
+    response = client.responses.create(
+        model="gpt-5-mini",
+        input=user_input
+    )
+
+    return response.output_text
+
+# -------------------------------------------
+# ✨ 발표 대본 교정 기능
+# -------------------------------------------
+st.divider()
+st.subheader("📝 발표 대본 교정하기 (문장 흐름 / 자연스러움 / 전달력 강화)")
+
+script_input = st.text_area(
+    "발표 대본을 입력하세요:",
+    height=250,
+    placeholder="예: 안녕하세요. 오늘은 저희 팀이 개발한 서비스를 소개하려고 합니다..."
+)
+
+if st.button("대본 교정 요청"):
+    if script_input.strip() == "":
+        st.error("❌ 발표 대본을 입력하세요.")
+    else:
+        prompt = f"""
+        아래 발표 대본을 더 자연스럽고 발표용으로 적합한 표현으로 수정해줘.
+        - 전달력을 높이기 위한 리듬과 강약 조절 포함
+        - 청중이 이해하기 쉽게 단순화
+        - 전문적인 느낌 유지
+        - 수정된 버전 + 개선 요약 제공
+
+        원본 발표 대본:
+        {script_input}
+        """
+
+        corrected_script = ask_gpt(prompt)
+
+        st.success("✨ 교정된 발표 대본")
+        st.write(corrected_script)
+
+
+        # -----------------------------
+# GPT 호출 함수
+# -----------------------------
+@st.cache_data(show_spinner=True)
+def ask_gpt(user_input):
+    client = OpenAI(api_key=API_KEY)
+
+    response = client.responses.create(
+        model="gpt-5-mini",
+        input=user_input
+    )
+
+    return response.output_text
+
+
+# -----------------------------
+# 음성 분석 함수
+# -----------------------------
+@st.cache_data(show_spinner=True)
+def analyze_audio(file_path):
+    y, sr = librosa.load(file_path)
+
+    duration = librosa.get_duration(y=y, sr=sr)         # 음성 길이
+    tempo, _ = librosa.beat.beat_track(y, sr=sr)         # 발화 속도 근사값
+    pitch = np.mean(librosa.yin(y, fmin=80, fmax=400, sr=sr))  # 평균 피치(억양)
+
+    return {
+        "duration(sec)": round(duration, 2),
+        "tempo(beats/min)": round(tempo, 2),
+        "avg_pitch(Hz)": round(float(pitch), 2),
+    }
+
+
+# -----------------------------
+# Whisper STT
+# -----------------------------
+@st.cache_data(show_spinner=True)
+def transcribe_audio(file_path):
+    model = whisper.load_model("base")
+    result = model.transcribe(file_path, language="ko")
+    return result["text"]
+
+
+# -----------------------------
+# UI : 음성 파일 업로드
+# -----------------------------
+st.divider()
+st.subheader("🎤 발표 연습 음성 분석")
+
+uploaded_audio = st.file_uploader("음성 파일을 업로드하세요 (mp3, wav, m4a)", type=["mp3", "wav", "m4a"])
+
+if st.button("음성 분석 시작"):
+    if uploaded_audio is None:
+        st.error("❌ 음성 파일을 업로드하세요.")
+    else:
+        with open("uploaded_audio.wav", "wb") as f:
+            f.write(uploaded_audio.read())
+
+        st.audio("uploaded_audio.wav")
+
+        st.info("⏳ Whisper를 이용한 전사 처리 중...")
+        transcript = transcribe_audio("uploaded_audio.wav")
+        st.success("📝 전사 결과")
+        st.write(transcript)
+
+        st.info("⏳ 음향 분석 중...")
+        metrics = analyze_audio("uploaded_audio.wav")
+        st.success("📊 음향 데이터 분석 결과")
+        st.json(metrics)
+
+        prompt = f"""
+        아래 발표자의 음성과 전사된 텍스트를 기반으로
+        발표 전달 방식을 개선할 수 있도록 상세한 피드백을 제공해줘.
+        - 억양(높낮이, 단조로움 여부) 개선 방법
+        - 발성(명확도, 발음 습관)
+        - 속도(WPM 또는 tempo 기준)
+        - 청중 전달력 강화 팁 3가지
+        - 수정된 발표 대본 예시 제공
+
+        전사 텍스트:
+        {transcript}
+
+        음향 분석 데이터:
+        {metrics}
+        """
+
+        feedback = ask_gpt(prompt)
+
+        st.success("🤖 발표 개선 피드백")
+        st.write(feedback)
