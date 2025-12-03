@@ -145,8 +145,19 @@ def chatgpt_text_edit(client: OpenAI, text: str, lang="ko") -> str:
 # ---------------------------
 # Streamlit UI
 # ---------------------------
-st.set_page_config(page_title="Speech Analyzer & Script Editor", page_icon="🎤", layout="centered")
-st.title("🎤 Speech Analyzer & ✍️ Script Editor")
+st.set_page_config(page_title="speakfit — 당신의 AI 스피치 비서", page_icon="🗣️", layout="centered")
+
+# 중앙 정렬로 메인 타이틀 표시
+st.markdown(
+    "<h1 style='text-align:center; margin-bottom:0.25rem;'>speakfit, 당신의 AI 스피치 비서.</h1>",
+    unsafe_allow_html=True
+)
+# 선택: 한 줄 서브타이틀(원하면 지워도 됩니다)
+st.markdown(
+    "<p style='text-align:center; color:gray; margin-top:0;'>음성 분석 · 전사 · 대본 교정까지 한 번에</p>",
+    unsafe_allow_html=True
+)
+
 
 with st.sidebar:
     api_key = st.text_input("OPENAI_API_KEY", type="password")
