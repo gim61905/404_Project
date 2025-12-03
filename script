@@ -1,0 +1,98 @@
+mport streamlit as st
+from openai import OpenAI
+import tempfile
+
+api_key = st.text_input(
+    "OpenAI API Key 입력",
+    type="password",
+    placeholder="API 키를 입력하세요."
+)
+
+if not api_key:
+    st.warning("OpenAI API Key를 입력해 주세요.")
+    st.stop()
+
+# API 클라이언트 생성
+client = OpenAI(api_key=api_key)
+
+
+st.set_page_config(page_title="발표 분석 & 대본 개선", layout="centered")
+st.title("발표 분석 & 대본 개선")
+
+st.write(
+    """
+    1. 발표 음성 파일을 업로드하면  
+    2. 음성 인식을 통해 대본을 만들고  
+    3. LLM이 발표를 분석하고, 개선된 대본까지 만들어 줍니다.
+    """
+)
+
+audio_file = st.file_uploader(
+    "발표 음성 파일을 업로드하세요 (mp3 / wav / m4a)",
+    type=["mp3", "wav", "m4a"]
+)
+
+if audio_file is not None:
+    st.audio(audio_file, format="audio/mpeg")
+
+    if st.button("분석 시작"):
+        # 1) 음성 파일을 임시 파일로 저장
+        with st.spinner("1/2 음성 인식 중..."):
+            with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                tmp.write(audio_file.read())
+                tmp_path = tmp.name
+
+            # 2) OpenAI 음성 인식 (Speech-to-Text)
+          
+            with open(tmp_path, "rb") as f:
+                transcript = client.audio.transcriptions.create(
+                    model="gpt-4o-mini-transcribe",
+                    file=f,
+                )
+
+            script_text = transcript.text
+
+        st.subheader("1. 인식된 대본")
+        st.write(script_text)
+
+        # 3) LLM에게 발표 분석 + 대본 개선 요청
+        with st.spinner("2/2 발표 분석 & 대본 개선 중..."):
+            prompt = f"""
+너는 발표 코치야.
+다음은 사용자의 발표 음성을 음성 인식으로 텍스트로 바꾼 대본이야.
+
+[발표 대본 시작]
+{script_text}
+[발표 대본 끝]
+
+아래 형식으로 한국어로 답해줘.
+
+1. 발표 내용 요약 (3~5문장)
+
+2. 잘한 점 (bullet 형식)
+
+3. 개선할 점 (bullet 형식)
+
+4. 개선된 발표 대본
+- 발표 시간 3~5분을 가정하고,
+- 서론 → 본론 → 결론 구조로,
+- 말하기 좋은 구어체로,
+- 청중 이해를 돕는 예시나 연결 문장을 적당히 넣어서 작성해줘.
+"""
+
+            response = client.responses.create(
+                model="gpt-4.1-mini",
+                input=[
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
+            )
+
+        feedback_text = response.output_text
+
+        st.subheader("2. 발표 분석 & 피드백")
+        st.write(feedback_text)
+else:
+    st.info("발표 음성 파일을 먼저 업로드해 주세요.")
